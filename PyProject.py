@@ -213,8 +213,6 @@ pred_class = pred.argmax(axis = -1) # Predicted class on test data
 
 pred_proba =  NN.predict_proba(X_test)[:, 1] # computes predicted probabilities for each class
 
-plot_model(NN, show_shapes=True) # plots network structure
-
 
 def output_encode(pred_class, data):
 
@@ -307,7 +305,6 @@ print(round(percentage_gain, 2),'%') # sum profits and compute % return
 # plt.show()
 
 # Confusion matrix and classification report
-
 conf_mat = confusion_matrix(y_test, pred_class)
 report = classification_report(y_test, pred_class)
 print(report, conf_mat)
