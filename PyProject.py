@@ -46,7 +46,6 @@ def indicators(data):
                     h.append(diff)
 
             u = (1 / n) * sum(h)
-
             d = (1 / n) * sum(b)
 
             rsi.append(100 - (100 / (1 + (u / d))))
