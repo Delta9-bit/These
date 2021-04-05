@@ -15,16 +15,19 @@ from sklearn.metrics import confusion_matrix, classification_report
 seed(1000) # ensures reproductible results
 
 # importing data from yahoo API
-ticker = 'AF.PA'
+ticker = 'AAPL'
 
 start = dt.datetime(2010,1,1) # series starts on 2010/01/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
 
 data = web.DataReader(ticker, 'yahoo', start, end)
 
-# plot
-#plt.plot(data)
-#plt.show()
+#plot
+plt.plot(data['Adj Close'])
+plt.show()
+plt.title(ticker)
+plt.ylabel('Adj Close')
+plt.xlabel('Time')
 
 # computing indicators
 
