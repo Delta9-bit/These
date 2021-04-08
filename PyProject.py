@@ -1,9 +1,9 @@
-seed(1000) # ensures reproductible results
-
 import pandas as pd
 import numpy as np
 from numpy.random import seed
 import sklearn as sk
+from sklearn import svm
+from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import datetime as dt
 import pandas_datareader as web
@@ -13,6 +13,7 @@ from tensorflow.keras import layers
 from keras.utils.vis_utils import plot_model
 from keras import Sequential
 from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
+import statsmodels.api as sm
 
 # importing data from yahoo API
 ticker = 'TSLA'
@@ -35,7 +36,6 @@ def indicators(data):
     # Relative Strength Index
     def RSI(data, n):
         rsi = []
-        n = n - 1
 
         for p in range (n, len(data)):
             h = []
@@ -60,7 +60,6 @@ def indicators(data):
     # Stochastic Oscillator
     def oscill(data, n, d):
         K = []
-        n = n - 1
         ma = []
 
         for p in range(n, len(data)):
@@ -89,7 +88,6 @@ def indicators(data):
 
     # Bollinger Bands
     def boll(data, k, n):
-        n = n - 1
         MA = []
         boll_up = []
         boll_dw = []
@@ -118,21 +116,155 @@ def indicators(data):
 
         return MA, boll_up, boll_dw;
 
+
+    # Moving Average Convergence Divergence
+    def MACD(data, n_large, n_small):
+        list_small = []
+        list_large = []
+        ma_small = []
+        ma_large = []
+
+        for p in range(n_small, len(data)):
+            for i in range(p - n_small, p):
+                list_small.append(data['Adj Close'][i])
+
+            small = (1 / (n_small + 1)) * sum(list_small)
+            ma_small.append(small)
+
+        for p in range(n_large, len(data)):
+            for i in range(p - n_large, p):
+                list_large.append(data['Adj Close'][i])
+
+            large = (1 / (n_small + 1)) * sum(list_large)
+            ma_large.append(large)
+
+        return ma_small, ma_large;
+
+
+    # Average Directional Index
+    def ADX(data, n):
+
+        true_range = [0]
+
+        for p in range(1, len(data)):
+            rnge = []
+
+            high_low = abs(data['High'][p] - data['Low'][p])
+            rnge.append(high_low)
+            high_close = abs(data['High'][p] - data['Adj Close'][p - 1])
+            rnge.append(high_close)
+            low_close = abs(data['Low'][p] - data['Adj Close'][p - 1])
+            rnge.append(low_close)
+
+            true_range.append(max(rnge))
+
+        DM_plus = []
+        DM_minus = []
+
+        for p in range(0, len(data)):
+            if (data['High'][p] - data['High'][p - 1]) >  (data['Low'][p - 1] - data['Low'][p]):
+                DM_plus.append((data['High'][p] - data['High'][p - 1]))
+                DM_minus.append(0)
+            else:
+                DM_minus.append((data['Low'][p - 1] - data['Low'][p]))
+                DM_plus.append(0)
+
+        rnge = 0
+        minus = 0
+        plus = 0
+
+        for p in range(0, n):
+            rnge = rnge + true_range[p]
+            minus = minus + DM_minus[p]
+            plus = plus + DM_plus[p]
+
+        smooth_range = []
+        smooth_plus = []
+        smooth_minus = []
+
+        for p in range(0, n):
+            smooth_range.append(0)
+            smooth_plus.append(0)
+            smooth_minus.append(0)
+
+        smooth_range.append(rnge)
+        smooth_plus.append(plus)
+        smooth_minus.append(minus)
+
+        for p in range(n + 1, len(data)):
+            avg_range = smooth_range[p - 1] / n
+            avg_minus = smooth_minus[p - 1] / n
+            avg_plus = smooth_plus[p - 1]/ n
+
+            smooth_range.append(smooth_range[p - 1] - avg_range + true_range[p])
+            smooth_minus.append(smooth_minus[p - 1] - avg_minus + DM_minus[p])
+            smooth_plus.append(smooth_plus[p - 1] - avg_plus + DM_plus[p])
+
+        indicator_plus = [0]
+        indicator_minus = [0]
+
+        for p in range(1, len(data)):
+                indicator_plus.append((smooth_plus[p] / true_range[p]) * 100)
+                indicator_minus.append((smooth_minus[p] / true_range[p]) * 100)
+
+        dx = [0, 0, 0, 0, 0]
+
+        for p in range(n, len(data)):
+            dx.append((abs((indicator_plus[p] - indicator_minus[p]) / (indicator_plus[p] + indicator_minus[p]))) * 100)
+
+        adx = []
+
+        for p in range(0, len(data)):
+            adx.append((1 / n) * sum(dx[p - n : p]))
+
+        return adx;
+
+
+    # On-Balance Volume
+    def OBV(data):
+        obv = [0]
+
+        for p in range(1, len(data)):
+            if data['Adj Close'][p] > data['Adj Close'][p - 1]:
+                obv.append(obv[p - 1] + data['Volume'][p])
+            elif data['Adj Close'][p] < data['Adj Close'][p - 1]:
+                obv.append(obv[p - 1] - data['Volume'][p])
+            else:
+                obv.append(obv[p - 1])
+
+        return obv;
+
+
     rsi = 9
     so = 14
     ma_so = 5
     ma = 20
     sd_boll = 2
+    macd_small = 12
+    macd_large = 26
+    adx_length = 14
 
     RSI = RSI(data, rsi) # 9-days RSI
     K, D = oscill(data, so, ma_so) # 14-days SO & 5-days moving average
     MA, boll_up, boll_dw = boll(data, sd_boll, ma) # 20-days MA and 2-sd bollinger bands
+    macd_short, macd_long = MACD(data, macd_large, macd_small) # 12 & 26 days moving averages
+    adx = ADX(data, adx_length) # 14 days ADX & positive and negative indicators
+    obv = OBV(data) # On Balance Volume
 
     # removing NAs
-    RSI = RSI[(ma - rsi) : len(RSI)]
-    K = K[(ma - so) : len(K)]
-    D = D[(ma - (so + ma_so)) : len(D)]
-    df = {'RSI': RSI, 'D': D, 'MA': MA, 'boll_up': boll_up, 'boll_dw': boll_dw}
+    RSI = RSI[(macd_large - rsi) : len(RSI)]
+    K = K[(macd_large - so) : len(K)]
+    D = D[(macd_large - (so + ma_so)) : len(D)]
+    MA = MA[(macd_large - ma) : len(MA)]
+    boll_up = boll_up[(macd_large - ma): len(boll_up)]
+    boll_dw = boll_dw[(macd_large - ma): len(boll_dw)]
+    macd_short = macd_short[(macd_large - macd_small) : len(macd_short)]
+    adx = adx[macd_large : len(adx)]
+    obv = obv[macd_large : len(obv)]
+
+    df = {'RSI': RSI, 'D': D, 'MA': MA, 'boll_up': boll_up,
+          'boll_dw': boll_dw, 'MACD_short' : macd_short, 'MACD_long' : macd_long,
+          'adx' : adx, 'OBV' : obv}
     X = pd.DataFrame(df) # coercing indicators into dataframe
 
     return X
@@ -167,9 +299,9 @@ def encode(data):
         else:
             print('error')
 
-    data.drop(['High', 'Low', 'Open', 'Close', 'Volume'], axis = 1, inplace = True)
-
     X = indicators(data)  # computes indicators
+
+    data.drop(['High', 'Low', 'Open', 'Close', 'Volume'], axis = 1, inplace = True)
 
     data.drop(data.index[len(data) - 1], axis=0, inplace=True) #remove last observation where position is NA
     data.insert(1, 'position', list) # add position
@@ -228,6 +360,11 @@ plt.scatter(y = data['MA'], x = data['position'])
 plt.scatter(y = data['D'], x = data['position'])
 plt.scatter(y = data['boll_up'], x = data['position'])
 plt.scatter(y = data['boll_dw'], x = data['position'])
+
+# Logit
+logit = sm.MNLogit(y, X)
+logit_fit = logit.fit(method = 'newton', maxiter = 100)
+logit_fit.summary()
 
 # Neural Net
 def NeuralNet():
@@ -348,3 +485,17 @@ print(round(percentage_gain, 2),'%') # sum profits and compute % return
 conf_mat = confusion_matrix(y_test, pred_class)
 report = classification_report(y_test, pred_class)
 print(report, conf_mat)
+
+# SVM
+grid = {
+	'C': [0.1, 1, 10, 100],
+	'gamma': [1, 0.1, 0.01, 0.001],
+	'kernel': ['rbf']}
+
+rbf_SVM = svm.SVC(max_iter = 1000)
+grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
+rbf_SVM_fit = grid_search.fit(X, y)
+
+rbf_pred = grid_search.predict(X_test)
+print(classification_report(rbf_pred, y_test))
+
