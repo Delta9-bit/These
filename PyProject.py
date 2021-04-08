@@ -14,9 +14,12 @@ from keras.utils.vis_utils import plot_model
 from keras import Sequential
 from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
 import statsmodels.api as sm
+import pylogit
+
+pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # importing data from yahoo API
-ticker = 'TSLA'
+ticker = 'WMT'
 
 start = dt.datetime(2010,1,1) # series starts on 2010/01/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
@@ -29,6 +32,7 @@ plt.show()
 plt.title(ticker)
 plt.ylabel('Adj Close')
 plt.xlabel('Time')
+
 
 # computing indicators
 def indicators(data):
@@ -269,21 +273,6 @@ def indicators(data):
 
     return X
 
-#fig, axs = plt.subplots(2)
-#axs[0].plot(data['Adj Close'][0:100], 'red')
-#axs[1].plot(RSI[0:100], color = 'steelblue')
-
-#fig, axs = plt.subplots(2)
-#axs[0].plot(data['Adj Close'][0:200], color = 'red')
-#axs[1].plot(D, color = 'steelblue')
-
-#index = range(0, len(MA)) # creates index (to be removed)
-
-#plt.plot(index, MA, linestyle = '--', color = 'darkorchid')
-#plt.plot(index, boll_up, linestyle = '-', color = 'forestgreen')
-#plt.fill_between(index, MA, boll_up, facecolor = "forestgreen", alpha = 0.3)
-#plt.fill_between(index, MA, boll_dw, facecolor = "firebrick", alpha = 0.3)
-#plt.plot(index, boll_dw, linestyle = '-', color = 'firebrick')
 
 def encode(data):
 
@@ -321,6 +310,7 @@ plt.bar(data['position'].value_counts().index, data['position'].value_counts().v
 plt.title(ticker)
 plt.show()
 
+
 def test_train_split(data, train):
 
     slice = train * len(data)
@@ -354,17 +344,41 @@ plt.bar(data_test['position'].value_counts().index, data_test['position'].value_
 plt.title(ticker)
 plt.show()
 
-#inputs plot
-plt.scatter(y = data['RSI'], x = data['position'])
-plt.scatter(y = data['MA'], x = data['position'])
-plt.scatter(y = data['D'], x = data['position'])
-plt.scatter(y = data['boll_up'], x = data['position'])
-plt.scatter(y = data['boll_dw'], x = data['position'])
 
-# Logit
-logit = sm.MNLogit(y, X)
-logit_fit = logit.fit(method = 'newton', maxiter = 100)
-logit_fit.summary()
+#inputs plot
+def inputPlots(data):
+    fig, axs = plt.subplots(2, 3)
+
+    axs[0, 0].scatter(y = data['RSI'], x = data['position'])
+    axs[0, 0].set_title('Relative Strenght Index')
+    axs[0, 0].set_xlabel('position')
+    axs[0, 0].set_ylabel('RSI')
+
+    axs[0, 1].scatter(y=data['MA'], x=data['position'])
+    axs[0, 1].set_title('20 days moving average')
+    axs[0, 1].set_xlabel('position')
+    axs[0, 1].set_ylabel('moving average')
+
+    axs[0, 2].scatter(y = data['D'], x = data['position'])
+    axs[0, 2].set_title('smoothed stochastic oscillator')
+    axs[0, 2].set_xlabel('position')
+    axs[0, 2].set_ylabel('oscillator')
+
+    axs[1, 0].scatter(y = data['adx'], x = data['position'])
+    axs[1, 0].set_title('Average Directional Index')
+    axs[1, 0].set_xlabel('position')
+    axs[1, 0].set_ylabel('ADX')
+
+    axs[1, 1].scatter(y = data['OBV'], x = data['position'])
+    axs[1, 1].set_title('On-Balance Volume')
+    axs[1, 1].set_xlabel('position')
+    axs[1, 1].set_ylabel('OBV')
+
+    fig.subplots_adjust(hspace=0.5, wspace=0.5)
+
+    plt.show()
+
+inputPlots(data)
 
 # Neural Net
 def NeuralNet():
