@@ -19,7 +19,7 @@ import pylogit
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # importing data from yahoo API
-ticker = 'WMT'
+ticker = 'AF.PA'
 
 start = dt.datetime(2010,1,1) # series starts on 2010/01/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
@@ -162,6 +162,9 @@ def indicators(data):
 
             true_range.append(max(rnge))
 
+            if true_range[p] == 0:
+                true_range[p] = true_range[p - 1]
+
         DM_plus = []
         DM_minus = []
 
@@ -275,7 +278,6 @@ def indicators(data):
 
 
 def encode(data):
-
     list = []
 
     for p in range(0, len(data) - 1):
@@ -293,19 +295,83 @@ def encode(data):
     data.drop(['High', 'Low', 'Open', 'Close', 'Volume'], axis = 1, inplace = True)
 
     data.drop(data.index[len(data) - 1], axis=0, inplace=True) #remove last observation where position is NA
+
     data.insert(1, 'position', list) # add position
-    data.drop(data.index[0 : (len(data) - len(X))], axis=0, inplace=True) # remove first observations where indicators are NA
-    #data = data.join(X)
-    X.reset_index(drop = True, inplace = True)
-    data.reset_index(drop = True, inplace = True)
-    data = pd.concat([data, X], axis = 1) # add X
 
-    return data, X;
+    data.drop(data.index[0: (len(data) - len(X))], axis=0, inplace=True)  # remove first observations where indicators are NA
+    X.reset_index(drop=True, inplace=True)
+    data.reset_index(drop=True, inplace=True)  # reseting index in data and X before concat
+    data = pd.concat([data, X], axis=1)  # add X
+
+    return data;
 
 
-data, X = encode(data) # encodes data into buy/hold/sell and creates X array of predictors
+data = encode(data) # encodes data into buy/hold/sell and add indicators
 
-# frequencies
+
+# transforming variables
+def transform(data):
+    RSI_signal = [4]
+    D_signal = [4]
+    boll_signal = [2]
+    MACD_signal = [2]
+
+    for p in range(1, len(data)):
+        if data['RSI'][p] > 70 and data['RSI'][p - 1] < 70:
+            RSI_signal.append(0)
+        elif data['RSI'][p] < 70 and data['RSI'][p - 1] > 70:
+            RSI_signal.append(1)
+        elif data['RSI'][p] > 30 and data['RSI'][p - 1] < 30:
+            RSI_signal.append(2)
+        elif data['RSI'][p] < 30 and data['RSI'][p - 1] > 30:
+            RSI_signal.append(3)
+        else:
+            RSI_signal.append(4)
+
+        if data['D'][p] > 80 and data['D'][p - 1] < 80:
+            D_signal.append(0)
+        elif data['D'][p] < 80 and data['D'][p - 1] > 80:
+            D_signal.append(1)
+        elif data['D'][p] > 20 and data['D'][p - 1] < 20:
+            D_signal.append(2)
+        elif data['D'][p] < 20 and data['D'][p - 1] > 20:
+            D_signal.append(3)
+        else:
+            D_signal.append(4)
+
+        if data['Adj Close'][p] > data['boll_up'][p]:
+            boll_signal.append(0)
+        elif data['Adj Close'][p] < data['boll_dw'][p]:
+            boll_signal.append(1)
+        else:
+            boll_signal.append(2)
+
+        if data['MACD_short'][p] > data['MACD_long'][p] and data['MACD_short'][p - 1] < data['MACD_long'][p - 1]:
+            MACD_signal.append(0)
+        elif data['MACD_short'][p] < data['MACD_long'][p] and data['MACD_short'][p - 1] > data['MACD_long'][p - 1]:
+            MACD_signal.append(1)
+        else:
+            MACD_signal.append(2)
+
+    for p in range(0, len(data)):
+        if data['position'][p] == 2:
+            data['position'][p] = 1
+        elif data['position'][p] == 3:
+            data['position'][p] = 0
+
+    data['RSI'] = RSI_signal
+    data['D'] = D_signal
+    data['boll'] = boll_signal
+    data['MACD_long'] = MACD_signal
+
+    data.drop(['MACD_short', 'MA', 'boll_up', 'boll_dw'], axis = 1, inplace = True)
+
+    return data;
+
+
+signal_data = transform(data) # tansform the indicators from raw value to signal
+
+# position frequencies
 plt.bar(data['position'].value_counts().index, data['position'].value_counts().values)
 plt.title(ticker)
 plt.show()
@@ -338,7 +404,7 @@ def test_train_split(data, train):
 
 data, data_test, X, y, X_test, y_test = test_train_split(data, 0.7)
 
-# frequencies (test VS train)
+# position frequencies (test VS train)
 plt.bar(data['position'].value_counts().index, data['position'].value_counts().values)
 plt.bar(data_test['position'].value_counts().index, data_test['position'].value_counts().values)
 plt.title(ticker)
@@ -380,15 +446,20 @@ def inputPlots(data):
 
 inputPlots(data)
 
+# Logit
+logit = sm.MNLogit(y, X)
+logit_fit = logit.fit(method = 'newton', maxiter = 100)
+logit_fit.summary()
+
+
 # Neural Net
 def NeuralNet():
 
     NN = Sequential()
 
-    NN.add(layers.Dense(3, activation = 'relu'))
-    NN.add(layers.Dense(3, activation = 'relu'))
-    NN.add(layers.Dense(3, activation = 'relu'))
-    NN.add(layers.Dense(4, activation = 'softmax'))
+    NN.add(layers.Dense(10, activation = 'relu'))
+    NN.add(layers.Dense(10, activation = 'relu'))
+    NN.add(layers.Dense(2, activation = 'softmax'))
 
     NN.compile(optimizer='adam',
                loss=keras.losses.SparseCategoricalCrossentropy(),
@@ -407,6 +478,36 @@ pred_class = pred.argmax(axis = -1) # Predicted class on test data
 
 pred_proba =  NN.predict_proba(X_test)[:, 1] # computes predicted probabilities for each class
 
+# AUC + ROC (in case of binary buy/sell classification)
+fpr, tpr, thr = roc_curve(y_test, pred_class)
+roc_auc = auc(fpr, tpr)
+print(NN, roc_auc)
+plt.plot(fpr, tpr, lw=2, alpha=0.7, label=NN)
+plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+plt.xlim([-0.05, 1.05])
+plt.ylim([-0.05, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.legend()
+plt.show()
+
+# Confusion matrix and classification report
+conf_mat = confusion_matrix(y_test, pred_class)
+report = classification_report(y_test, pred_class)
+print(report, conf_mat)
+
+# SVM
+grid = {
+	'C': [0.1, 1, 10, 100],
+	'gamma': [1, 0.1, 0.01, 0.001],
+	'kernel': ['rbf']}
+
+rbf_SVM = svm.SVC(max_iter = 1000)
+grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
+rbf_SVM_fit = grid_search.fit(X, y)
+
+rbf_pred = grid_search.predict(X_test)
+print(classification_report(rbf_pred, y_test))
 
 def output_encode(pred_class, data):
     list = []
@@ -480,36 +581,4 @@ print(round(percentage_gain, 2),'%') # sum profits and compute % return
 # plt.show
 # plt.plot(cumsum)
 # plt.show
-
-# AUC + ROC (in case of binary buy/sell classification)
-
-#fpr, tpr, thr = roc_curve(y_test, pred_class)
-#roc_auc = auc(fpr, tpr)
-#print(model, roc_auc)
-#plt.plot(fpr, tpr, lw=2, alpha=0.7, label=model)
-#plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
-#plt.xlim([-0.05, 1.05])
-#plt.ylim([-0.05, 1.05])
-#plt.xlabel('False Positive Rate')
-#plt.ylabel('True Positive Rate')
-#plt.legend()
-#plt.show()
-
-# Confusion matrix and classification report
-conf_mat = confusion_matrix(y_test, pred_class)
-report = classification_report(y_test, pred_class)
-print(report, conf_mat)
-
-# SVM
-grid = {
-	'C': [0.1, 1, 10, 100],
-	'gamma': [1, 0.1, 0.01, 0.001],
-	'kernel': ['rbf']}
-
-rbf_SVM = svm.SVC(max_iter = 1000)
-grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
-rbf_SVM_fit = grid_search.fit(X, y)
-
-rbf_pred = grid_search.predict(X_test)
-print(classification_report(rbf_pred, y_test))
 
