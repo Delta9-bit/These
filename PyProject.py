@@ -19,9 +19,9 @@ import pylogit
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # importing data from yahoo API
-ticker = 'AF.PA'
+ticker = 'AAPL'
 
-start = dt.datetime(2010,1,1) # series starts on 2010/01/01 ends on 2019/12/31
+start = dt.datetime(2010,8,1) # series starts on 2010/01/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
 
 data = web.DataReader(ticker, 'yahoo', start, end)
