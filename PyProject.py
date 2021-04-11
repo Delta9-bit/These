@@ -19,7 +19,7 @@ import pylogit
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # importing data from yahoo API
-ticker = 'AAPL'
+ticker = 'WMT'
 
 start = dt.datetime(2010,8,1) # series starts on 2010/01/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
@@ -444,7 +444,7 @@ def inputPlots(data):
 
     plt.show()
 
-inputPlots(data)
+#inputPlots(data)
 
 # Logit
 logit = sm.MNLogit(y, X)
@@ -471,30 +471,34 @@ def NeuralNet():
 
 NN = NeuralNet() # creates Neural Net
 
-NN.fit(X, y, epochs = 500) # fits the model
+history = NN.fit(X, y, epochs = 500) # fits the model
 
-pred = NN.predict(X_test)
-pred_class = pred.argmax(axis = -1) # Predicted class on test data
+pred = NN.predict(X) # Predicted probabilities on train data
+pred_class = pred.argmax(axis = -1) # Predicted class on train data
+pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
 
-pred_proba =  NN.predict_proba(X_test)[:, 1] # computes predicted probabilities for each class
 
-# AUC + ROC (in case of binary buy/sell classification)
-fpr, tpr, thr = roc_curve(y_test, pred_class)
-roc_auc = auc(fpr, tpr)
-print(NN, roc_auc)
-plt.plot(fpr, tpr, lw=2, alpha=0.7, label=NN)
-plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
-plt.xlim([-0.05, 1.05])
-plt.ylim([-0.05, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.legend()
-plt.show()
+# AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+def Results(y, pred):
+    fpr, tpr, thr = roc_curve(y, pred_class)
+    roc_auc = auc(fpr, tpr)
+    print(NN, roc_auc)
+    plt.plot(fpr, tpr, lw=2, alpha=0.7, label=NN)
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.show()
 
-# Confusion matrix and classification report
-conf_mat = confusion_matrix(y_test, pred_class)
-report = classification_report(y_test, pred_class)
-print(report, conf_mat)
+    conf_mat = confusion_matrix(pred_class, y)
+    report = classification_report(pred_class, y)
+    print(report, conf_mat)
+
+    plt.plot(history.history['loss'])
+    plt.show()
+
+Results(y, pred)
 
 # SVM
 grid = {
