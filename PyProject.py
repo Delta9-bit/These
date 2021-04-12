@@ -1,20 +1,17 @@
 import pandas as pd
 import numpy as np
-from numpy.random import seed
-import sklearn as sk
 from sklearn import svm
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import datetime as dt
 import pandas_datareader as web
-import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from keras.utils.vis_utils import plot_model
+from keras.layers import LSTM
 from keras import Sequential
 from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
 import statsmodels.api as sm
-import pylogit
+from sklearn.preprocessing import MinMaxScaler
 
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
@@ -498,7 +495,9 @@ def results(y, pred_class, model):
     plt.plot(history.history['loss'])
     plt.show()
 
+
 results(y, pred, NN)
+
 
 def ImprovedNeuralNet():
 
@@ -515,6 +514,7 @@ def ImprovedNeuralNet():
                )
 
     return NN
+
 
 ImprovNN = ImprovedNeuralNet() # creates Neural Net
 
@@ -535,24 +535,64 @@ pred_class = SVM.predict(X)
 
 results(y, pred_class, SVM)
 
-# confusion matrix
-conf_mat = confusion_matrix(pred_class, y)
-report = classification_report(pred_class, y)
-print(report, conf_mat)
-
 # RBF kernel SVM
 grid = {
 	'C': [0.001, 0.01, 0.1, 1, 10, 100],
-	'gamma': [10, 1, 0.1, 0.01, 0.001],
+	'gamma': [10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001],
 	'kernel': ['rbf']}
 
 rbf_SVM = svm.SVC(max_iter = 1000)
 grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
 rbf_SVM_fit = grid_search.fit(X, y)
 
-rbf_pred = grid_search.predict(X)
-print(classification_report(rbf_pred, y))
-print(confusion_matrix(rbf_pred, y))
+print(grid_search.best_params_ ) # displays the best set of parameters
+
+pred_class = grid_search.predict(X)
+
+results(y, pred_class, rbf_SVM)
+
+#LSTM
+for p in range(0, len(data)):
+    if data['position'][p] == 2:
+        data['position'][p] = 1
+    elif data['position'][p] == 3:
+        data['position'][p] = 0
+
+scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
+X = scaler.transform(X)
+
+n = 14
+Xtrain = []
+ytrain = []
+
+for p in range(n, len(X)):
+    Xtrain.append(X[p - n : p, : X.shape[1]])
+    ytrain.append(y[p])
+
+Xtrain, ytrain = (np.array(Xtrain), np.array(ytrain))
+Xtrain = np.reshape(Xtrain, (Xtrain.shape[0], Xtrain.shape[1], Xtrain.shape[2]))
+
+
+def lstm_net():
+    model = Sequential()
+    model.add(LSTM(64, input_shape = (Xtrain.shape[1], Xtrain.shape[2])))
+    model.add(layers.Dense(1))
+
+    model.compile(loss = keras.losses.BinaryCrossentropy(),
+                metrics=keras.metrics.BinaryCrossentropy(),
+                optimizer="adam")
+
+    return model
+
+
+lstm = lstm_net()
+
+history = lstm.fit(Xtrain, ytrain, epochs = 100)
+
+pred = lstm.predict(Xtrain) # Predicted probabilities on train data
+pred_class = pred.argmax(axis = -1) # Predicted class on train data
+
+results(ytrain, pred_class, lstm)
 
 def output_encode(pred_class, data):
     list = []
