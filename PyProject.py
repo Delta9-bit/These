@@ -479,11 +479,11 @@ pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for e
 
 
 # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
-def Results(y, pred):
+def results(y, pred_class, model):
     fpr, tpr, thr = roc_curve(y, pred_class)
     roc_auc = auc(fpr, tpr)
-    print(NN, roc_auc)
-    plt.plot(fpr, tpr, lw=2, alpha=0.7, label=NN)
+    print(model, roc_auc)
+    plt.plot(fpr, tpr, lw=2, alpha=0.7, label=model)
     plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
     plt.xlim([-0.05, 1.05])
     plt.ylim([-0.05, 1.05])
@@ -498,20 +498,61 @@ def Results(y, pred):
     plt.plot(history.history['loss'])
     plt.show()
 
-Results(y, pred)
+results(y, pred, NN)
 
-# SVM
+def ImprovedNeuralNet():
+
+    NN = Sequential()
+
+    NN.add(layers.Dense(32, activation = 'relu'))
+    NN.add(layers.Dense(32, activation = 'relu'))
+    NN.add(layers.Dense(32, activation='relu'))
+    NN.add(layers.Dense(1, activation = 'softmax'))
+
+    NN.compile(optimizer='adam',
+               loss=keras.losses.BinaryCrossentropy(),
+               metrics=keras.metrics.BinaryCrossentropy(),
+               )
+
+    return NN
+
+ImprovNN = ImprovedNeuralNet() # creates Neural Net
+
+history = ImprovNN.fit(X, y, epochs = 1000) # fits the model
+
+pred = ImprovNN.predict(X) # Predicted probabilities on train data
+pred_class = pred.argmax(axis = -1) # Predicted class on train data
+pred_proba =  ImprovNN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
+
+# AUC + ROC + confusion matrix
+results(y, pred, ImprovNN)
+
+# linear SVM
+SVM = svm.SVC(max_iter = 1000)
+SVM_fit = SVM.fit(X, y)
+
+pred_class = SVM.predict(X)
+
+results(y, pred_class, SVM)
+
+# confusion matrix
+conf_mat = confusion_matrix(pred_class, y)
+report = classification_report(pred_class, y)
+print(report, conf_mat)
+
+# RBF kernel SVM
 grid = {
-	'C': [0.1, 1, 10, 100],
-	'gamma': [1, 0.1, 0.01, 0.001],
+	'C': [0.001, 0.01, 0.1, 1, 10, 100],
+	'gamma': [10, 1, 0.1, 0.01, 0.001],
 	'kernel': ['rbf']}
 
 rbf_SVM = svm.SVC(max_iter = 1000)
 grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
 rbf_SVM_fit = grid_search.fit(X, y)
 
-rbf_pred = grid_search.predict(X_test)
-print(classification_report(rbf_pred, y_test))
+rbf_pred = grid_search.predict(X)
+print(classification_report(rbf_pred, y))
+print(confusion_matrix(rbf_pred, y))
 
 def output_encode(pred_class, data):
     list = []
