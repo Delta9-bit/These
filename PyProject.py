@@ -16,7 +16,7 @@ from sklearn.preprocessing import MinMaxScaler
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # importing data from yahoo API
-ticker = 'WMT'
+ticker = 'AAPL'
 
 start = dt.datetime(2010,8,1) # series starts on 2010/01/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
@@ -366,7 +366,7 @@ def transform(data):
     return data;
 
 
-signal_data = transform(data) # tansform the indicators from raw value to signal
+signal_data = transform(data) # transform the indicators from raw value to signal
 
 # position frequencies
 plt.bar(data['position'].value_counts().index, data['position'].value_counts().values)
@@ -441,12 +441,17 @@ def inputPlots(data):
 
     plt.show()
 
+
 #inputPlots(data)
 
 # Logit
 logit = sm.MNLogit(y, X)
 logit_fit = logit.fit(method = 'newton', maxiter = 100)
 logit_fit.summary()
+
+#Normalize features
+scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
+X = scaler.transform(X)
 
 
 # Neural Net
@@ -477,26 +482,28 @@ pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for e
 
 # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 def results(y, pred_class, model):
+    fig, axs  = plt.subplots(1, 2, figsize = (10, 5))
+
     fpr, tpr, thr = roc_curve(y, pred_class)
     roc_auc = auc(fpr, tpr)
     print(model, roc_auc)
-    plt.plot(fpr, tpr, lw=2, alpha=0.7, label=model)
-    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
-    plt.xlim([-0.05, 1.05])
-    plt.ylim([-0.05, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.show()
+
+
+    axs[0].plot(fpr, tpr, lw=2, alpha=0.7, label=model)
+    axs[0].plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+    axs[0].set_xlabel('False Positive Rate')
+    axs[0].set_ylabel('True Positive Rate')
+
+    axs[1].plot(history.history['loss'])
+    axs[1].set_xlabel('Epochs')
+    axs[1].set_ylabel('Loss')
 
     conf_mat = confusion_matrix(pred_class, y)
     report = classification_report(pred_class, y)
     print(report, conf_mat)
 
-    plt.plot(history.history['loss'])
-    plt.show()
 
-
-results(y, pred, NN)
+results(y, pred_class, NN)
 
 
 def ImprovedNeuralNet():
@@ -506,7 +513,7 @@ def ImprovedNeuralNet():
     NN.add(layers.Dense(32, activation = 'relu'))
     NN.add(layers.Dense(32, activation = 'relu'))
     NN.add(layers.Dense(32, activation='relu'))
-    NN.add(layers.Dense(1, activation = 'softmax'))
+    NN.add(layers.Dense(1, activation = 'sigmoid'))
 
     NN.compile(optimizer='adam',
                loss=keras.losses.BinaryCrossentropy(),
@@ -521,14 +528,13 @@ ImprovNN = ImprovedNeuralNet() # creates Neural Net
 history = ImprovNN.fit(X, y, epochs = 1000) # fits the model
 
 pred = ImprovNN.predict(X) # Predicted probabilities on train data
-pred_class = pred.argmax(axis = -1) # Predicted class on train data
-pred_proba =  ImprovNN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
+pred_class = ImprovNN.predict_classes(X) # Predicted class on train data
 
 # AUC + ROC + confusion matrix
-results(y, pred, ImprovNN)
+results(y, pred_class, ImprovNN)
 
 # linear SVM
-SVM = svm.SVC(max_iter = 1000)
+SVM = svm.SVC()
 SVM_fit = SVM.fit(X, y)
 
 pred_class = SVM.predict(X)
@@ -545,7 +551,7 @@ rbf_SVM = svm.SVC(max_iter = 1000)
 grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
 rbf_SVM_fit = grid_search.fit(X, y)
 
-print(grid_search.best_params_ ) # displays the best set of parameters
+print(grid_search.best_params_) # displays the best set of parameters
 
 pred_class = grid_search.predict(X)
 
