@@ -16,9 +16,9 @@ from sklearn.preprocessing import MinMaxScaler
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 # importing data from yahoo API
-ticker = 'AAPL'
+ticker = 'TSLA'
 
-start = dt.datetime(2010,8,1) # series starts on 2010/01/01 ends on 2019/12/31
+start = dt.datetime(2010,8,1) # series starts on 2010/08/01 ends on 2019/12/31
 end = dt.datetime(2019,12,31)
 
 data = web.DataReader(ticker, 'yahoo', start, end)
@@ -451,7 +451,10 @@ logit_fit.summary()
 
 #Normalize features
 scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
-X = scaler.transform(X)
+X = scaler.transform(X) # Train data
+
+scaler = MinMaxScaler(feature_range = [0, 1]).fit(X_test)
+X_test = scaler.transform(X_test) # Test data
 
 
 # Neural Net
@@ -530,6 +533,8 @@ history = ImprovNN.fit(X, y, epochs = 1000) # fits the model
 pred = ImprovNN.predict(X) # Predicted probabilities on train data
 pred_class = ImprovNN.predict_classes(X) # Predicted class on train data
 
+pred_class_test = ImprovNN.predict_classes(X_test) # Predicted class on test data
+
 # AUC + ROC + confusion matrix
 results(y, pred_class, ImprovNN)
 
@@ -556,6 +561,104 @@ print(grid_search.best_params_) # displays the best set of parameters
 pred_class = grid_search.predict(X)
 
 results(y, pred_class, rbf_SVM)
+
+# Profits
+def output_encode(pred_class, data):
+    list = []
+
+    for p in range(0, len(pred_class)):
+        if pred_class[p] == 1:
+            list.append('buy')
+        elif pred_class[p] == 0:
+            list.append('sell')
+
+
+    data.insert(3, 'pred_string', list)
+    data.insert(4, 'pred_pos', pred_class)
+
+    return data
+
+
+data_test = output_encode(pred_class_test, data_test) # encodes output as categorical string variables
+data_test.insert(1, 'pred', pred_class_test) # adding predictions as 0/1
+
+
+def profits(data, amount):
+    init = amount
+    profits = []
+    total = [amount]
+    returns = []
+
+    for p in range(0, len(data) - 1):
+
+        tx = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+
+        if data['position'][p] == 0 and data['pred'][p] == 0:
+            profit = - (init * tx)
+        elif data['position'][p] == 0 and data['pred'][p] == 1:
+            profit = init * tx
+        elif data['position'][p] == 1 and data['pred'][p] == 1:
+            profit = init * tx
+        elif data['position'][p] == 1 and data['pred'][p] == 0:
+            profit = - (init * tx)
+        else:
+            print('error')
+
+        profits.append(profit)
+
+        init = init + profit
+
+        total.append(init)
+
+        returns.append(tx)
+
+    profits.append(0)
+    returns.append(0)
+
+    return profits, total, returns;
+
+
+amount = 1000
+
+profits, total, returns = profits(data_test, amount) # computes profits made with specified initial investment
+
+plt.plot(returns)
+plt.xlabel("time")
+plt.ylabel("returns")
+
+data_test.insert(3, 'profit', profits)
+data_test.insert(4, 'total', total)
+data_test.insert(5, 'returns', returns)
+
+sum_returns = sum(data_test['returns'])
+print(round(sum_returns, 2))
+sum_profits = sum(data_test['profit'])
+print(round(sum_profits, 2))
+percentage_gain = ((total[- 1] - amount) / amount) * 100
+cumsum = np.cumsum(profits)
+print(round(percentage_gain, 2),'%') # sum profits and compute % return
+
+plt.plot(data_test['profit'])
+plt.show
+plt.plot(data_test['total'])
+plt.show
+
+proportion = []
+
+for p in range(0, len(data_test) - 1):
+
+    tx = (data_test['Adj Close'][p + 1] - data_test['Adj Close'][p]) / data_test['Adj Close'][p]
+
+    if data_test['position'][p] == data_test['pred'][p]:
+        proportion.append(1)
+    else:
+        proportion.append(0)
+
+
+proportion.append(0)
+
+data_test.insert(6, 'proportion', proportion)
+
 
 #LSTM
 for p in range(0, len(data)):
@@ -600,76 +703,5 @@ pred_class = pred.argmax(axis = -1) # Predicted class on train data
 
 results(ytrain, pred_class, lstm)
 
-def output_encode(pred_class, data):
-    list = []
 
-    for p in range(0, len(pred_class)):
-        if pred_class[p] == 1:
-            list.append('buy')
-        elif pred_class[p] == 2:
-            list.append('hold')
-        else:
-            list.append('sell')
-
-    data.insert(3, 'pred_string', list)
-    data.insert(4, 'pred_pos', pred_class)
-
-    return data
-
-
-data_test = output_encode(pred_class, data_test) # encodes output as categorical string variables
-
-
-def profits(data, amount):
-    init = amount
-    profits = []
-
-    for p in range(1, len(data)):
-
-        tx = ((data['Adj Close'][p] - data['Adj Close'][p - 1]) / data['Adj Close'][p - 1])
-
-        if data['position'][p - 1] == 1 and data['pred_pos'][p - 1] == 1:
-            profit = amount * tx
-        elif data['position'][p - 1] == 1 and data['pred_pos'][p - 1] == 2:
-            profit = 0
-        elif data['position'][p - 1] == 1 and data['pred_pos'][p - 1] == 3:
-            profit = - (amount * tx)
-        elif data['position'][p - 1] == 2 and data['pred_pos'][p - 1] == 1:
-            profit = 0
-        elif data['position'][p - 1] == 2 and data['pred_pos'][p - 1] == 2:
-            profit = 0
-        elif data['position'][p - 1] == 2 and data['pred_pos'][p - 1] == 3:
-            profit = 0
-        elif data['position'][p - 1] == 3 and data['pred_pos'][p - 1] == 1:
-            profit = amount * tx
-        elif data['position'][p - 1] == 3 and data['pred_pos'][p - 1] == 2:
-            profit = 0
-        elif data['position'][p - 1] == 3 and data['pred_pos'][p - 1] == 3:
-            profit = - (amount * tx)
-        else:
-            print('error')
-
-        profits.append(profit)
-
-    profits.insert(0, 0)
-
-    return profits
-
-
-amount = 1000
-
-profits = profits(data_test, amount) # computes profits made with specified initial investment
-
-data_test.insert(3, 'profit', profits)
-
-sum_profits = sum(data_test['profit'])
-print(round(sum_profits, 2))
-percentage_gain = sum_profits * 100 / amount
-cumsum = np.cumsum(profits)
-print(round(percentage_gain, 2),'%') # sum profits and compute % return
-
-# plt.plot(data_test['profit'])
-# plt.show
-# plt.plot(cumsum)
-# plt.show
 
