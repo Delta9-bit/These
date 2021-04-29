@@ -13,25 +13,10 @@ from sklearn.metrics import confusion_matrix, classification_report, roc_curve, 
 import statsmodels.api as sm
 from sklearn.preprocessing import MinMaxScaler
 
+# Display options
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
-# importing data from yahoo API
-ticker = 'TSLA'
-
-start = dt.datetime(2010,8,1) # series starts on 2010/08/01 ends on 2019/12/31
-end = dt.datetime(2019,12,31)
-
-data = web.DataReader(ticker, 'yahoo', start, end)
-
-#plot
-plt.plot(data['Adj Close'])
-plt.show()
-plt.title(ticker)
-plt.ylabel('Adj Close')
-plt.xlabel('Time')
-
-
-# computing indicators
+#computes indicators
 def indicators(data):
 
     # Relative Strength Index
@@ -272,8 +257,7 @@ def indicators(data):
     X = pd.DataFrame(df) # coercing indicators into dataframe
 
     return X
-
-
+# encodes data into buy/hold/sell and add indicators
 def encode(data):
     list = []
 
@@ -301,12 +285,7 @@ def encode(data):
     data = pd.concat([data, X], axis=1)  # add X
 
     return data;
-
-
-data = encode(data) # encodes data into buy/hold/sell and add indicators
-
-
-# transforming variables
+# transform the indicators from raw value to signal
 def transform(data):
     RSI_signal = [4]
     D_signal = [4]
@@ -364,16 +343,7 @@ def transform(data):
     data.drop(['MACD_short', 'MA', 'boll_up', 'boll_dw'], axis = 1, inplace = True)
 
     return data;
-
-
-signal_data = transform(data) # transform the indicators from raw value to signal
-
-# position frequencies
-plt.bar(data['position'].value_counts().index, data['position'].value_counts().values)
-plt.title(ticker)
-plt.show()
-
-
+# Splits data into training and testing
 def test_train_split(data, train):
 
     slice = train * len(data)
@@ -397,18 +367,18 @@ def test_train_split(data, train):
     X_test.reset_index(drop=True, inplace=True)
 
     return data, data_test, X, y, X_test, y_test;
+def test_train_SP(data, train):
+    data = data[data_SP.index[26]: data.index[len(data) - 1]]
 
+    slice = train * len(data)
+    slice = int(slice)
 
-data, data_test, X, y, X_test, y_test = test_train_split(data, 0.7)
+    data_copy = data[data.index[0]: data.index[slice - 1]]
+    data_test = data[data.index[slice]: data.index[len(data) - 1]]  # slicing data
+    data = data_copy
 
-# position frequencies (test VS train)
-plt.bar(data['position'].value_counts().index, data['position'].value_counts().values)
-plt.bar(data_test['position'].value_counts().index, data_test['position'].value_counts().values)
-plt.title(ticker)
-plt.show()
-
-
-#inputs plot
+    return data, data_test
+# plots of conditional distributions with respect to inputs
 def inputPlots(data):
     fig, axs = plt.subplots(2, 3)
 
@@ -440,49 +410,20 @@ def inputPlots(data):
     fig.subplots_adjust(hspace=0.5, wspace=0.5)
 
     plt.show()
-
-
-#inputPlots(data)
-
-# Logit
-logit = sm.MNLogit(y, X)
-logit_fit = logit.fit(method = 'newton', maxiter = 100)
-logit_fit.summary()
-
-#Normalize features
-scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
-X = scaler.transform(X) # Train data
-
-scaler = MinMaxScaler(feature_range = [0, 1]).fit(X_test)
-X_test = scaler.transform(X_test) # Test data
-
-
-# Neural Net
+# Neural net architecture
 def NeuralNet():
+        NN = Sequential()
 
-    NN = Sequential()
+        NN.add(layers.Dense(10, activation='relu'))
+        NN.add(layers.Dense(10, activation='relu'))
+        NN.add(layers.Dense(2, activation='softmax'))
 
-    NN.add(layers.Dense(10, activation = 'relu'))
-    NN.add(layers.Dense(10, activation = 'relu'))
-    NN.add(layers.Dense(2, activation = 'softmax'))
+        NN.compile(optimizer='adam',
+                   loss=keras.losses.SparseCategoricalCrossentropy(),
+                   metrics=keras.metrics.SparseCategoricalCrossentropy(),
+                   )
 
-    NN.compile(optimizer='adam',
-               loss=keras.losses.SparseCategoricalCrossentropy(),
-               metrics=keras.metrics.SparseCategoricalCrossentropy(),
-               )
-
-    return NN
-
-
-NN = NeuralNet() # creates Neural Net
-
-history = NN.fit(X, y, epochs = 500) # fits the model
-
-pred = NN.predict(X) # Predicted probabilities on train data
-pred_class = pred.argmax(axis = -1) # Predicted class on train data
-pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
-
-
+        return NN
 # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 def results(y, pred_class, model):
     fig, axs  = plt.subplots(1, 2, figsize = (10, 5))
@@ -504,65 +445,22 @@ def results(y, pred_class, model):
     conf_mat = confusion_matrix(pred_class, y)
     report = classification_report(pred_class, y)
     print(report, conf_mat)
-
-
-results(y, pred_class, NN)
-
-
+# Second Neural Net architecture
 def ImprovedNeuralNet():
+        NN = Sequential()
 
-    NN = Sequential()
+        NN.add(layers.Dense(32, activation='relu'))
+        NN.add(layers.Dense(32, activation='relu'))
+        NN.add(layers.Dense(32, activation='relu'))
+        NN.add(layers.Dense(1, activation='sigmoid'))
 
-    NN.add(layers.Dense(32, activation = 'relu'))
-    NN.add(layers.Dense(32, activation = 'relu'))
-    NN.add(layers.Dense(32, activation='relu'))
-    NN.add(layers.Dense(1, activation = 'sigmoid'))
+        NN.compile(optimizer='adam',
+                   loss=keras.losses.BinaryCrossentropy(),
+                   metrics=keras.metrics.BinaryCrossentropy(),
+                   )
 
-    NN.compile(optimizer='adam',
-               loss=keras.losses.BinaryCrossentropy(),
-               metrics=keras.metrics.BinaryCrossentropy(),
-               )
-
-    return NN
-
-
-ImprovNN = ImprovedNeuralNet() # creates Neural Net
-
-history = ImprovNN.fit(X, y, epochs = 1000) # fits the model
-
-pred = ImprovNN.predict(X) # Predicted probabilities on train data
-pred_class = ImprovNN.predict_classes(X) # Predicted class on train data
-
-pred_class_test = ImprovNN.predict_classes(X_test) # Predicted class on test data
-
-# AUC + ROC + confusion matrix
-results(y, pred_class, ImprovNN)
-
-# linear SVM
-SVM = svm.SVC()
-SVM_fit = SVM.fit(X, y)
-
-pred_class = SVM.predict(X)
-
-results(y, pred_class, SVM)
-
-# RBF kernel SVM
-grid = {
-	'C': [0.001, 0.01, 0.1, 1, 10, 100],
-	'gamma': [10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001],
-	'kernel': ['rbf']}
-
-rbf_SVM = svm.SVC(max_iter = 1000)
-grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
-rbf_SVM_fit = grid_search.fit(X, y)
-
-print(grid_search.best_params_) # displays the best set of parameters
-
-pred_class = grid_search.predict(X)
-
-results(y, pred_class, rbf_SVM)
-
-# Profits
+        return NN
+# Encodes predictions into string variables easier to read (deprecated)
 def output_encode(pred_class, data):
     list = []
 
@@ -577,17 +475,13 @@ def output_encode(pred_class, data):
     data.insert(4, 'pred_pos', pred_class)
 
     return data
-
-
-data_test = output_encode(pred_class_test, data_test) # encodes output as categorical string variables
-data_test.insert(1, 'pred', pred_class_test) # adding predictions as 0/1
-
-
+# Computes profits based on predictions and returns for the S&P500 same period
 def profits(data, amount):
     init = amount
     profits = []
     total = [amount]
     returns = []
+    realized_returns = []
 
     for p in range(0, len(data) - 1):
 
@@ -595,18 +489,32 @@ def profits(data, amount):
 
         if data['position'][p] == 0 and data['pred'][p] == 0:
             profit = - (init * tx)
+            init = init + profit
+            if init > amount:
+                realized_returns.append(init - amount)
+                init = amount
+            else:
+                realized_returns.append(0)
         elif data['position'][p] == 0 and data['pred'][p] == 1:
             profit = init * tx
+            init = init + profit
+            realized_returns.append(0)
         elif data['position'][p] == 1 and data['pred'][p] == 1:
             profit = init * tx
+            init = init + profit
+            if init > amount:
+                realized_returns.append(init - amount)
+                init = amount
+            else:
+                realized_returns.append(0)
         elif data['position'][p] == 1 and data['pred'][p] == 0:
             profit = - (init * tx)
+            init = init + profit
+            realized_returns.append(0)
         else:
             print('error')
 
         profits.append(profit)
-
-        init = init + profit
 
         total.append(init)
 
@@ -614,94 +522,250 @@ def profits(data, amount):
 
     profits.append(0)
     returns.append(0)
+    realized_returns.append(0)
 
-    return profits, total, returns;
+    data['profit'] = profits
+    data['total'] = total
+    data['%returns'] = returns
+    data['realized_returns'] = realized_returns
 
+    sum_returns = sum(data['%returns'])
+    print(round(sum_returns, 2))
+    sum_profits = sum(data['profit'])
+    print(round(sum_profits, 2))
+    sum_realized_returns = sum(data['realized_returns'])
+    print(round(sum_realized_returns, 2))
+    percentage_gain = (sum_realized_returns * 100) / amount
+    print(round(percentage_gain, 2), '%')  # sum profits and compute % return
 
+    return data;
+def profits_SP(data, amount):
+    init = amount
+    profits = []
+    total = [amount]
+    returns = []
+    realized_returns = []
+
+    for p in range(0, len(data) - 1):
+
+        tx = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+
+        if tx > 0:
+            profit = init * tx
+            init = init + profit
+            if init > amount:
+                realized_returns.append(init - amount)
+                init = amount
+            else:
+                realized_returns.append(0)
+        else:
+            profit = init * tx
+            init = init + profit
+            realized_returns.append(0)
+
+        profits.append(profit)
+
+        total.append(init)
+
+        returns.append(tx)
+
+    profits.append(0)
+    returns.append(0)
+    realized_returns.append(0)
+
+    data['profit'] = profits
+    data['total'] = total
+    data['%returns'] = returns
+    data['realized_returns'] = realized_returns
+
+    sum_returns = sum(data['%returns'])
+    print(round(sum_returns, 2))
+    sum_profits = sum(data['profit'])
+    print(round(sum_profits, 2))
+    sum_realized_returns = sum(data['realized_returns'])
+    print(round(sum_realized_returns, 2))
+    percentage_gain = (sum_realized_returns * 100) / amount
+    print(round(percentage_gain, 2), '%')  # sum profits and compute % return
+
+    return data;
+# Counts the number of time the model is right/wrong
+def accuracy(data):
+    proportion = []
+
+    for p in range(0, len(data) - 1):
+
+        tx = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+
+        if data['position'][p] == data['pred'][p]:
+            proportion.append(1)
+        else:
+            proportion.append(0)
+
+    proportion.append(0)
+
+    data['proportion'] = proportion
+
+    return data;
+
+# Choosing assets
+ticker = 'WMT' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
+ticker_SP = '^GSPC' # ticker for the S&P500
+
+start = dt.datetime(2010,8,1) # series starts on 2010/08/01
+end = dt.datetime(2019,12,31) # ends on 2019/12/31
+
+# importing data from yahoo API
+data = web.DataReader(ticker, 'yahoo', start, end)
+data_SP = web.DataReader(ticker_SP, 'yahoo', start, end)
+
+# plot of the serie
+plt.plot(data['Adj Close'])
+plt.show()
+plt.title(ticker)
+plt.ylabel('Adj Close')
+plt.xlabel('Time')
+
+data = encode(data) # encodes data into buy/hold/sell and add indicators
+
+signal_data = transform(data) # transform the indicators from raw value to signal
+
+train_size = 0.7 # 70% of the data to training 30% to testing
+
+# Spliting data into training and testing sets
+data, data_test, X, y, X_test, y_test = test_train_split(data, train_size)
+data_SP, data_SP_test = test_train_SP(data_SP, train_size)
+
+# position frequencies (test VS train)
+plt.bar(data['position'].value_counts().index, data['position'].value_counts().values)
+plt.bar(data_test['position'].value_counts().index, data_test['position'].value_counts().values)
+plt.title(ticker)
+plt.show()
+
+inputPlots(data) # plots of conditional distributions with respect to inputs
+
+# Logit
+logit = sm.MNLogit(y, X)
+logit_fit = logit.fit(method = 'newton', maxiter = 100)
+logit_fit.summary()
+
+#Normalize features
+scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
+X = scaler.transform(X) # Train data
+
+scaler = MinMaxScaler(feature_range = [0, 1]).fit(X_test)
+X_test = scaler.transform(X_test) # Test data
+
+# Standard Neural Net
+NN = NeuralNet() # creates Neural Net
+history = NN.fit(X, y, epochs = 500) # fits the model
+pred = NN.predict(X) # Predicted probabilities on train data
+pred_class = pred.argmax(axis = -1) # Predicted class on train data
+pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
+
+results(y, pred_class, NN) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+
+data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
+data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
+
+# Improved Neural Net
+ImprovNN = ImprovedNeuralNet() # creates Neural Net
+history = ImprovNN.fit(X, y, epochs = 1000) # fits the model
+pred = ImprovNN.predict(X) # Predicted probabilities on train data
+pred_class = ImprovNN.predict_classes(X) # Predicted class on train data
+pred_class_test = ImprovNN.predict_classes(X_test) # Predicted class on test data
+
+results(y, pred_class, ImprovNN) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+
+data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
+data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
+
+# linear SVM
+SVM = svm.SVC()
+SVM_fit = SVM.fit(X, y)
+pred_class = SVM.predict(X)
+
+results(y, pred_class, SVM) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+
+data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
+data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
+
+# RBF kernel SVM
+grid = {
+	'C': [0.001, 0.01, 0.1, 1, 10, 100],
+	'gamma': [10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001],
+	'kernel': ['rbf']} # grid of values to evaluate
+
+rbf_SVM = svm.SVC(max_iter = 1000)
+grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
+rbf_SVM_fit = grid_search.fit(X, y)
+pred_class_test = grid_search.predict(X_test)
+
+print(grid_search.best_params_) # displays the best set of parameters
+
+results(y, pred_class, rbf_SVM) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+
+data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
+data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
+
+# Profits
 amount = 1000
 
-profits, total, returns = profits(data_test, amount) # computes profits made with specified initial investment
+data_test = profits(data_test, amount) # computes profits made with specified initial investment
+data_SP_test = profits_SP(data_SP_test, amount)
 
 plt.plot(returns)
 plt.xlabel("time")
 plt.ylabel("returns")
-
-data_test.insert(3, 'profit', profits)
-data_test.insert(4, 'total', total)
-data_test.insert(5, 'returns', returns)
-
-sum_returns = sum(data_test['returns'])
-print(round(sum_returns, 2))
-sum_profits = sum(data_test['profit'])
-print(round(sum_profits, 2))
-percentage_gain = ((total[- 1] - amount) / amount) * 100
-cumsum = np.cumsum(profits)
-print(round(percentage_gain, 2),'%') # sum profits and compute % return
-
 plt.plot(data_test['profit'])
 plt.show
 plt.plot(data_test['total'])
 plt.show
-
-proportion = []
-
-for p in range(0, len(data_test) - 1):
-
-    tx = (data_test['Adj Close'][p + 1] - data_test['Adj Close'][p]) / data_test['Adj Close'][p]
-
-    if data_test['position'][p] == data_test['pred'][p]:
-        proportion.append(1)
-    else:
-        proportion.append(0)
-
-
-proportion.append(0)
-
-data_test.insert(6, 'proportion', proportion)
-
+plt.plot(data_test['realized_returns'])
+plt.show()
 
 #LSTM
-for p in range(0, len(data)):
-    if data['position'][p] == 2:
-        data['position'][p] = 1
-    elif data['position'][p] == 3:
-        data['position'][p] = 0
+def lstm():
+    for p in range(0, len(data)):
+        if data['position'][p] == 2:
+            data['position'][p] = 1
+        elif data['position'][p] == 3:
+            data['position'][p] = 0
 
-scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
-X = scaler.transform(X)
+    scaler = MinMaxScaler(feature_range = [0, 1]).fit(X)
+    X = scaler.transform(X)
 
-n = 14
-Xtrain = []
-ytrain = []
+    n = 14
+    Xtrain = []
+    ytrain = []
 
-for p in range(n, len(X)):
-    Xtrain.append(X[p - n : p, : X.shape[1]])
-    ytrain.append(y[p])
+    for p in range(n, len(X)):
+        Xtrain.append(X[p - n : p, : X.shape[1]])
+        ytrain.append(y[p])
 
-Xtrain, ytrain = (np.array(Xtrain), np.array(ytrain))
-Xtrain = np.reshape(Xtrain, (Xtrain.shape[0], Xtrain.shape[1], Xtrain.shape[2]))
-
-
-def lstm_net():
-    model = Sequential()
-    model.add(LSTM(64, input_shape = (Xtrain.shape[1], Xtrain.shape[2])))
-    model.add(layers.Dense(1))
-
-    model.compile(loss = keras.losses.BinaryCrossentropy(),
-                metrics=keras.metrics.BinaryCrossentropy(),
-                optimizer="adam")
-
-    return model
+    Xtrain, ytrain = (np.array(Xtrain), np.array(ytrain))
+    Xtrain = np.reshape(Xtrain, (Xtrain.shape[0], Xtrain.shape[1], Xtrain.shape[2]))
 
 
-lstm = lstm_net()
+    def lstm_net():
+        model = Sequential()
+        model.add(LSTM(64, input_shape = (Xtrain.shape[1], Xtrain.shape[2])))
+        model.add(layers.Dense(1))
 
-history = lstm.fit(Xtrain, ytrain, epochs = 100)
+        model.compile(loss = keras.losses.BinaryCrossentropy(),
+                    metrics=keras.metrics.BinaryCrossentropy(),
+                    optimizer="adam")
 
-pred = lstm.predict(Xtrain) # Predicted probabilities on train data
-pred_class = pred.argmax(axis = -1) # Predicted class on train data
+        return model
 
-results(ytrain, pred_class, lstm)
+
+    lstm = lstm_net()
+
+    history = lstm.fit(Xtrain, ytrain, epochs = 100)
+
+    pred = lstm.predict(Xtrain) # Predicted probabilities on train data
+    pred_class = pred.argmax(axis = -1) # Predicted class on train data
+
+    results(ytrain, pred_class, lstm)
 
 
 
