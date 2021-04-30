@@ -347,7 +347,7 @@ def transform(data):
 def test_train_split(data, train):
 
     slice = train * len(data)
-    slice = int(slice) # slice = index where test begins
+    slice = int(slice) # slice = index where test set begins
 
     data_copy = data[data.index[0] : data.index[slice - 1]]
     data_test = data[data.index[slice] : data.index[len(data) - 1]] # slicing data
@@ -579,13 +579,78 @@ def profits_SP(data, amount):
     data['realized_returns'] = realized_returns
 
     sum_returns = sum(data['%returns'])
-    print(round(sum_returns, 2))
     sum_profits = sum(data['profit'])
-    print(round(sum_profits, 2))
     sum_realized_returns = sum(data['realized_returns'])
-    print(round(sum_realized_returns, 2))
     percentage_gain = (sum_realized_returns * 100) / amount
-    print(round(percentage_gain, 2), '%')  # sum profits and compute % return
+
+    print('sum profits : ', round(sum_profits, 2))
+    print('sum returns : ', round(sum_returns, 2))
+    print('sum realized returns : ', round(sum_realized_returns, 2))
+    print('total realized return : ', round(percentage_gain, 2), '%')  # sum profits and compute % return
+
+    return data;
+def profitsV2(data, amount):
+    available = amount
+    total = 0
+    profit = 0
+    realized_returns = []
+    returns = []
+    available_amount = []
+    invested_amount = []
+    profits = []
+
+    for p in range(0, len(data) - 1):
+
+        rate = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+        returns.append(rate)
+
+        if data['pred'][p] == 0:
+            available = total
+            profit = 0
+            profits.append(profit)
+            available_amount.append(available)
+            invested_amount.append(0)
+        else:
+            if total == 0:
+                total = available
+            else:
+                total = total
+
+            available = 0
+            profit = total * rate
+            total = total + profit
+            profits.append(profit)
+            available_amount.append(available)
+            invested_amount.append(total)
+
+        if total > amount:
+            realized_returns.append(total - amount)
+            total = amount
+        else:
+            realized_returns.append(0)
+            total = total
+
+    profits.append(0)
+    returns.append(0)
+    realized_returns.append(0)
+    invested_amount.append(0)
+    available_amount.append(total)
+
+    data['available'] = available_amount
+    data['invested'] = invested_amount
+    data['%returns'] = returns
+    data['profit'] = profits
+    data['realized_returns'] = realized_returns
+
+    sum_returns = sum(data['%returns'])
+    sum_profits = sum(data['profit'])
+    sum_realized_returns = sum(data['realized_returns'])
+    percentage_gain = (sum_realized_returns * 100) / amount
+
+    print('sum profits : ', round(sum_profits, 2))
+    print('sum returns : ', round(sum_returns, 2))
+    print('sum realized returns : ', round(sum_realized_returns, 2))
+    print('total realized return', round(percentage_gain, 2), '%')  # sum profits and compute % return
 
     return data;
 # Counts the number of time the model is right/wrong
@@ -608,7 +673,7 @@ def accuracy(data):
     return data;
 
 # Choosing assets
-ticker = 'WMT' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
+ticker = 'AAPL' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
 ticker_SP = '^GSPC' # ticker for the S&P500
 
 start = dt.datetime(2010,8,1) # series starts on 2010/08/01
@@ -683,6 +748,7 @@ data_test = accuracy(data_test) # Counts the number of time the model is right/w
 SVM = svm.SVC()
 SVM_fit = SVM.fit(X, y)
 pred_class = SVM.predict(X)
+pred_class_test = SVM.predict(X_test)
 
 results(y, pred_class, SVM) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 
@@ -710,12 +776,9 @@ data_test = accuracy(data_test) # Counts the number of time the model is right/w
 # Profits
 amount = 1000
 
-data_test = profits(data_test, amount) # computes profits made with specified initial investment
-data_SP_test = profits_SP(data_SP_test, amount)
+data_test = profitsV2(data_test, amount) # computes profits made with specified initial investment
+data_SP_test = profits_SP(data_SP_test, amount) # same for S&P
 
-plt.plot(returns)
-plt.xlabel("time")
-plt.ylabel("returns")
 plt.plot(data_test['profit'])
 plt.show
 plt.plot(data_test['total'])
