@@ -10,6 +10,7 @@ from tensorflow.keras import layers
 from keras.layers import LSTM
 from keras import Sequential
 from sklearn.metrics import confusion_matrix, classification_report, roc_curve, auc
+from sklearn.preprocessing import OneHotEncoder
 import statsmodels.api as sm
 from sklearn.preprocessing import MinMaxScaler
 
@@ -338,9 +339,32 @@ def transform(data):
     data['RSI'] = RSI_signal
     data['D'] = D_signal
     data['boll'] = boll_signal
-    data['MACD_long'] = MACD_signal
+    data['MACD'] = MACD_signal
 
-    data.drop(['MACD_short', 'MA', 'boll_up', 'boll_dw'], axis = 1, inplace = True)
+    encoder = OneHotEncoder()
+
+    RSI_cat = encoder.fit_transform(data[['RSI']]).toarray()
+    RSI_name = encoder.get_feature_names(['RSI'])
+    RSI_cat = pd.DataFrame(RSI_cat, columns=RSI_name)
+
+    D_cat = encoder.fit_transform(data[['D']]).toarray()
+    D_name = encoder.get_feature_names(['D'])
+    D_cat = pd.DataFrame(D_cat, columns=D_name)
+
+    boll_cat = encoder.fit_transform(data[['boll']]).toarray()
+    boll_name = encoder.get_feature_names(['boll'])
+    boll_cat = pd.DataFrame(boll_cat, columns=boll_name)
+
+    MACD_cat = encoder.fit_transform(data[['MACD']]).toarray()
+    MACD_name = encoder.get_feature_names(['MACD'])
+    MACD_cat = pd.DataFrame(MACD_cat, columns=MACD_name)
+
+    data = data.join(RSI_cat)
+    data = data.join(D_cat)
+    data = data.join(boll_cat)
+    data = data.join(MACD_cat)
+
+    data.drop(['MACD_short', 'MA', 'boll_up', 'boll_dw', 'boll', 'MACD_long', 'RSI', 'D', 'MACD', 'RSI_4', 'D_4', 'boll_2'], axis = 1, inplace = True)
 
     return data;
 # Splits data into training and testing
@@ -406,6 +430,11 @@ def inputPlots(data):
     axs[1, 1].set_title('On-Balance Volume')
     axs[1, 1].set_xlabel('position')
     axs[1, 1].set_ylabel('OBV')
+
+    axs[1, 2].scatter(y = data['boll_up'], x = data['position'])
+    axs[1, 2].set_title('Upper Bollinger Band')
+    axs[1, 2].set_xlabel('position')
+    axs[1, 2].set_ylabel('Bollinger Band')
 
     fig.subplots_adjust(hspace=0.5, wspace=0.5)
 
@@ -692,7 +721,7 @@ plt.xlabel('Time')
 
 data = encode(data) # encodes data into buy/hold/sell and add indicators
 
-signal_data = transform(data) # transform the indicators from raw value to signal
+data = transform(data) # transform the indicators from raw value to signal
 
 train_size = 0.7 # 70% of the data to training 30% to testing
 
