@@ -505,69 +505,6 @@ def output_encode(pred_class, data):
 
     return data
 # Computes profits based on predictions and returns for the S&P500 same period
-def profits(data, amount):
-    init = amount
-    profits = []
-    total = [amount]
-    returns = []
-    realized_returns = []
-
-    for p in range(0, len(data) - 1):
-
-        tx = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
-
-        if data['position'][p] == 0 and data['pred'][p] == 0:
-            profit = - (init * tx)
-            init = init + profit
-            if init > amount:
-                realized_returns.append(init - amount)
-                init = amount
-            else:
-                realized_returns.append(0)
-        elif data['position'][p] == 0 and data['pred'][p] == 1:
-            profit = init * tx
-            init = init + profit
-            realized_returns.append(0)
-        elif data['position'][p] == 1 and data['pred'][p] == 1:
-            profit = init * tx
-            init = init + profit
-            if init > amount:
-                realized_returns.append(init - amount)
-                init = amount
-            else:
-                realized_returns.append(0)
-        elif data['position'][p] == 1 and data['pred'][p] == 0:
-            profit = - (init * tx)
-            init = init + profit
-            realized_returns.append(0)
-        else:
-            print('error')
-
-        profits.append(profit)
-
-        total.append(init)
-
-        returns.append(tx)
-
-    profits.append(0)
-    returns.append(0)
-    realized_returns.append(0)
-
-    data['profit'] = profits
-    data['total'] = total
-    data['%returns'] = returns
-    data['realized_returns'] = realized_returns
-
-    sum_returns = sum(data['%returns'])
-    print(round(sum_returns, 2))
-    sum_profits = sum(data['profit'])
-    print(round(sum_profits, 2))
-    sum_realized_returns = sum(data['realized_returns'])
-    print(round(sum_realized_returns, 2))
-    percentage_gain = (sum_realized_returns * 100) / amount
-    print(round(percentage_gain, 2), '%')  # sum profits and compute % return
-
-    return data;
 def profits_SP(data, amount):
     init = amount
     profits = []
@@ -702,7 +639,7 @@ def accuracy(data):
     return data;
 
 # Choosing assets
-ticker = 'AAPL' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
+ticker = 'WMT' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
 ticker_SP = '^GSPC' # ticker for the S&P500
 
 start = dt.datetime(2010,8,1) # series starts on 2010/08/01
