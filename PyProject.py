@@ -510,6 +510,7 @@ def profits_SP(data, amount):
     profits = []
     total = [amount]
     returns = []
+    realized_profits = []
     realized_returns = []
 
     for p in range(0, len(data) - 1):
@@ -520,13 +521,16 @@ def profits_SP(data, amount):
             profit = init * tx
             init = init + profit
             if init > amount:
-                realized_returns.append(init - amount)
+                realized_profits.append(init - amount)
+                realized_returns.append(tx)
                 init = amount
             else:
+                realized_profits.append(0)
                 realized_returns.append(0)
         else:
             profit = init * tx
             init = init + profit
+            realized_profits.append(0)
             realized_returns.append(0)
 
         profits.append(profit)
@@ -537,21 +541,31 @@ def profits_SP(data, amount):
 
     profits.append(0)
     returns.append(0)
+    realized_profits.append(0)
     realized_returns.append(0)
+
+    backtest = {'Close Price' : data['Adj Close'],
+                '%return' : returns,
+                'profits' : profits,
+                'realized_profits' : realized_profits,
+                'realized_returns': realized_returns}
+
+    backtest = pd.DataFrame(backtest)
 
     data['profit'] = profits
     data['total'] = total
     data['%returns'] = returns
+    data['realized_profits'] = realized_profits
     data['realized_returns'] = realized_returns
 
     sum_returns = sum(data['%returns'])
     sum_profits = sum(data['profit'])
-    sum_realized_returns = sum(data['realized_returns'])
-    percentage_gain = (sum_realized_returns * 100) / amount
+    sum_realized_profits = sum(data['realized_profits'])
+    percentage_gain = (sum_realized_profits * 100) / amount
 
     print('sum profits : ', round(sum_profits, 2))
     print('sum returns : ', round(sum_returns, 2))
-    print('sum realized returns : ', round(sum_realized_returns, 2))
+    print('sum realized returns : ', round(sum_realized_profits, 2))
     print('total realized return : ', round(percentage_gain, 2), '%')  # sum profits and compute % return
 
     return data;
@@ -560,6 +574,7 @@ def profitsV2(data, amount):
     total = 0
     profit = 0
     realized_returns = []
+    realized_profits = []
     returns = []
     available_amount = []
     invested_amount = []
@@ -573,6 +588,7 @@ def profitsV2(data, amount):
         if data['pred'][p] == 0:
             available = total
             profit = 0
+            realized_returns.append(0)
             profits.append(profit)
             available_amount.append(available)
             invested_amount.append(0)
@@ -585,40 +601,55 @@ def profitsV2(data, amount):
             available = 0
             profit = total * rate
             total = total + profit
+            realized_returns.append(rate)
             profits.append(profit)
             available_amount.append(available)
             invested_amount.append(total)
 
         if total > amount:
-            realized_returns.append(total - amount)
+            realized_profits.append(total - amount)
             total = amount
         else:
-            realized_returns.append(0)
+            realized_profits.append(0)
             total = total
 
     profits.append(0)
     returns.append(0)
+    realized_profits.append(0)
     realized_returns.append(0)
     invested_amount.append(0)
     available_amount.append(total)
+
+    backtest = {'Close Price' : data['Adj Close'],
+                '%return' : returns,
+                'position' : data['position'],
+                'pred' : data['pred'],
+                'profits' : profits,
+                'available' : available_amount,
+                'invested' : invested_amount,
+                'realized_profits' : realized_profits,
+                'realized_returns': realized_returns}
+
+    backtest = pd.DataFrame(backtest)
 
     data['available'] = available_amount
     data['invested'] = invested_amount
     data['%returns'] = returns
     data['profit'] = profits
+    data['realized_profits'] = realized_profits
     data['realized_returns'] = realized_returns
 
     sum_returns = sum(data['%returns'])
     sum_profits = sum(data['profit'])
-    sum_realized_returns = sum(data['realized_returns'])
-    percentage_gain = (sum_realized_returns * 100) / amount
+    sum_realized_profits = sum(data['realized_profits'])
+    percentage_gain = (sum_realized_profits * 100) / amount
 
     print('sum profits : ', round(sum_profits, 2))
     print('sum returns : ', round(sum_returns, 2))
-    print('sum realized returns : ', round(sum_realized_returns, 2))
+    print('sum realized returns : ', round(sum_realized_profits, 2))
     print('total realized return', round(percentage_gain, 2), '%')  # sum profits and compute % return
 
-    return data;
+    return backtest;
 # Counts the number of time the model is right/wrong
 def accuracy(data):
     proportion = []
@@ -637,6 +668,13 @@ def accuracy(data):
     data['proportion'] = proportion
 
     return data;
+# Sharpe ratio
+def sharpe(data, risk_free):
+    returns = data['']
+
+    ratio = (returns - risk_free) / volatility
+
+    return ratio;
 
 # Choosing assets
 ticker = 'WMT' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
@@ -692,6 +730,7 @@ history = NN.fit(X, y, epochs = 500) # fits the model
 pred = NN.predict(X) # Predicted probabilities on train data
 pred_class = pred.argmax(axis = -1) # Predicted class on train data
 pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
+pred_class_test = NN.predict_classes(X_test)
 
 results(y, pred_class, NN) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 
@@ -742,14 +781,12 @@ data_test = accuracy(data_test) # Counts the number of time the model is right/w
 # Profits
 amount = 1000
 
-data_test = profitsV2(data_test, amount) # computes profits made with specified initial investment
-data_SP_test = profits_SP(data_SP_test, amount) # same for S&P
+backtest = profitsV2(data_test, amount) # computes profits made with specified initial investment
+backtest_SP = profits_SP(data_SP_test, amount) # same for S&P
 
 plt.plot(data_test['profit'])
 plt.show
-plt.plot(data_test['total'])
-plt.show
-plt.plot(data_test['realized_returns'])
+plt.plot(data_test['realized_profits'])
 plt.show()
 
 #LSTM
