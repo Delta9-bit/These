@@ -1,10 +1,12 @@
 import pandas as pd
 import numpy as np
+from numpy.random import seed
 from sklearn import svm
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import datetime as dt
 import pandas_datareader as web
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from keras.layers import LSTM
@@ -16,6 +18,10 @@ from sklearn.preprocessing import MinMaxScaler
 
 # Display options
 pd.set_option("display.max_rows", None, "display.max_columns", None)
+
+#seed
+seed(100)
+tf.random.set_seed(100)
 
 #computes indicators
 def indicators(data):
@@ -452,20 +458,22 @@ def NeuralNet():
                    metrics=keras.metrics.SparseCategoricalCrossentropy(),
                    )
 
+        NN._name = 'Neural_Network'
+
         return NN
 # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
-def results(y, pred_class, model):
+def results(y, pred_class, model, ticker):
     fig, axs  = plt.subplots(1, 2, figsize = (10, 5))
 
     fpr, tpr, thr = roc_curve(y, pred_class)
     roc_auc = auc(fpr, tpr)
     print(model, roc_auc)
 
-
     axs[0].plot(fpr, tpr, lw=2, alpha=0.7, label=model)
     axs[0].plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
     axs[0].set_xlabel('False Positive Rate')
     axs[0].set_ylabel('True Positive Rate')
+    axs[0].set_title(ticker)
 
     axs[1].plot(history.history['loss'])
     axs[1].set_xlabel('Epochs')
@@ -474,6 +482,29 @@ def results(y, pred_class, model):
     conf_mat = confusion_matrix(pred_class, y)
     report = classification_report(pred_class, y)
     print(report, conf_mat)
+# ROC curve + confusion matrix
+def roc(y, pred_class, model, ticker, model_name):
+    fpr, tpr, thr = roc_curve(y, pred_class)
+    roc_auc = auc(fpr, tpr)
+    print(model, roc_auc)
+
+    plt.plot(fpr, tpr, lw=2, alpha=0.7, label=model_name)
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(ticker)
+    plt.legend()
+    plt.show()
+
+    conf_mat = confusion_matrix(pred_class, y)
+    report = classification_report(pred_class, y)
+    print(report, conf_mat)
+# learning curve
+def learning_curve(model, ticker):
+    plt.plot(history.history['loss'])
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title(ticker)
 # Second Neural Net architecture
 def ImprovedNeuralNet():
         NN = Sequential()
@@ -487,6 +518,8 @@ def ImprovedNeuralNet():
                    loss=keras.losses.BinaryCrossentropy(),
                    metrics=keras.metrics.BinaryCrossentropy(),
                    )
+
+        NN._name = 'Improved_Neural_Net'
 
         return NN
 # Encodes predictions into string variables easier to read (deprecated)
@@ -677,7 +710,7 @@ def sharpe(data, risk_free):
     return ratio;
 
 # Choosing assets
-ticker = 'WMT' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
+ticker = 'AAPL' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
 ticker_SP = '^GSPC' # ticker for the S&P500
 
 start = dt.datetime(2010,8,1) # series starts on 2010/08/01
@@ -732,7 +765,10 @@ pred_class = pred.argmax(axis = -1) # Predicted class on train data
 pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
 pred_class_test = NN.predict_classes(X_test)
 
-results(y, pred_class, NN) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+# results(y, pred_class, ImprovNN, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+roc(y, pred_class, NN, ticker, 'Neural Network') # ROC + confusion matrix train data
+roc(y_test, pred_class_test, NN, ticker, 'Neural Network') # ROC + confusion matrix test data
+learning_curve(NN, ticker) # learning cruve
 
 data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
 data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
@@ -744,7 +780,10 @@ pred = ImprovNN.predict(X) # Predicted probabilities on train data
 pred_class = ImprovNN.predict_classes(X) # Predicted class on train data
 pred_class_test = ImprovNN.predict_classes(X_test) # Predicted class on test data
 
-results(y, pred_class, ImprovNN) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+# results(y, pred_class, ImprovNN, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+roc(y, pred_class,ImprovNN, ticker, 'Improved Neural Network') # ROC + confusion matrix train data
+roc(y_test, pred_class_test,ImprovNN, ticker, 'Improved Neural Network') # ROC + confusion matrix test data
+learning_curve(ImprovNN, ticker) # learning cruve
 
 data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
 data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
@@ -755,7 +794,10 @@ SVM_fit = SVM.fit(X, y)
 pred_class = SVM.predict(X)
 pred_class_test = SVM.predict(X_test)
 
-results(y, pred_class, SVM) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+# results(y, pred_class, SVM, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+roc(y, pred_class, SVM, ticker, 'linear SVM') # ROC + confusion matrix train data
+roc(y_test, pred_class_test, SVM, ticker, 'linear SVM') # ROC + confusion matrix test data
+learning_curve(SVM, ticker) # learning cruve
 
 data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
 data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
@@ -769,11 +811,15 @@ grid = {
 rbf_SVM = svm.SVC(max_iter = 1000)
 grid_search = GridSearchCV(rbf_SVM, param_grid = grid, refit = True)
 rbf_SVM_fit = grid_search.fit(X, y)
+pred_class = grid_search.predict(X)
 pred_class_test = grid_search.predict(X_test)
 
 print(grid_search.best_params_) # displays the best set of parameters
 
-results(y, pred_class, rbf_SVM) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+# results(y, pred_class, rbf_SVM, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
+roc(y, pred_class, grid_search, ticker, 'Kernel SVM') # ROC + confusion matrix train data
+roc(y_test, pred_class_test, grid_search, ticker, 'Kernel SVM') # ROC + confusion matrix test data
+learning_curve(rbf_SVM, ticker) # learning cruve
 
 data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
 data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
