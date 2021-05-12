@@ -383,9 +383,6 @@ def test_train_split(data, train):
     data_test = data[data.index[slice] : data.index[len(data) - 1]] # slicing data
     data = data_copy
 
-    data.reset_index(drop = True, inplace = True) # reset index necessary for profits function
-    data_test.reset_index(drop = True, inplace = True)
-
     y = data['position'] # re-creating X and y
     y.reset_index(drop = True, inplace =True)
     X = data.drop(['Adj Close', 'position'], axis = 1)
@@ -398,16 +395,18 @@ def test_train_split(data, train):
 
     return data, data_test, X, y, X_test, y_test;
 def test_train_SP(data, train):
-    data = data[data_SP.index[26]: data.index[len(data) - 1]]
+    data = data[data.index[26]: data.index[len(data) - 1]]
+
+    data.reset_index(drop=True, inplace=True)
 
     slice = train * len(data)
     slice = int(slice)
 
-    data_copy = data[data.index[0]: data.index[slice - 1]]
-    data_test = data[data.index[slice]: data.index[len(data) - 1]]  # slicing data
+    data_copy = data[data.index[0] : data.index[slice - 1]]
+    data_test = data[data.index[slice] : data.index[len(data) - 1]]  # slicing data
     data = data_copy
 
-    return data, data_test
+    return data, data_test;
 # plots of conditional distributions with respect to inputs
 def inputPlots(data):
     fig, axs = plt.subplots(2, 3)
@@ -702,13 +701,27 @@ def accuracy(data):
 
     return data;
 # Sharpe ratio
-def sharpe(data, risk_free):
-    returns = data['']
+def sharpe(data):
+    returns = data['realized_returns']
 
-    ratio = (returns - risk_free) / volatility
+    length_period = len(data['realized_returns'])
+
+    volatility = np.std(returns)
+
+    ratio = (sum(returns) / length_period) / volatility
 
     return ratio;
+# beta
+def beta(data, market):
+    returns = data['realized_returns']
+    market_returns = market['realized_returns']
 
+    num = np.cov(returns, market_returns)
+    den = np.var(market_returns)
+
+    beta = num / den
+
+    return beta;
 # Choosing assets
 ticker = 'AAPL' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
 ticker_SP = '^GSPC' # ticker for the S&P500
@@ -765,7 +778,6 @@ pred_class = pred.argmax(axis = -1) # Predicted class on train data
 pred_proba =  NN.predict_proba(X)[:, 1] # computes predicted probabilities for each class
 pred_class_test = NN.predict_classes(X_test)
 
-# results(y, pred_class, ImprovNN, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 roc(y, pred_class, NN, ticker, 'Neural Network') # ROC + confusion matrix train data
 roc(y_test, pred_class_test, NN, ticker, 'Neural Network') # ROC + confusion matrix test data
 learning_curve(NN, ticker) # learning cruve
@@ -780,7 +792,6 @@ pred = ImprovNN.predict(X) # Predicted probabilities on train data
 pred_class = ImprovNN.predict_classes(X) # Predicted class on train data
 pred_class_test = ImprovNN.predict_classes(X_test) # Predicted class on test data
 
-# results(y, pred_class, ImprovNN, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 roc(y, pred_class,ImprovNN, ticker, 'Improved Neural Network') # ROC + confusion matrix train data
 roc(y_test, pred_class_test,ImprovNN, ticker, 'Improved Neural Network') # ROC + confusion matrix test data
 learning_curve(ImprovNN, ticker) # learning cruve
@@ -794,7 +805,6 @@ SVM_fit = SVM.fit(X, y)
 pred_class = SVM.predict(X)
 pred_class_test = SVM.predict(X_test)
 
-# results(y, pred_class, SVM, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 roc(y, pred_class, SVM, ticker, 'linear SVM') # ROC + confusion matrix train data
 roc(y_test, pred_class_test, SVM, ticker, 'linear SVM') # ROC + confusion matrix test data
 learning_curve(SVM, ticker) # learning cruve
@@ -816,7 +826,6 @@ pred_class_test = grid_search.predict(X_test)
 
 print(grid_search.best_params_) # displays the best set of parameters
 
-# results(y, pred_class, rbf_SVM, ticker) # AUC + ROC + confusion matrix (in case of binary buy/sell classification)
 roc(y, pred_class, grid_search, ticker, 'Kernel SVM') # ROC + confusion matrix train data
 roc(y_test, pred_class_test, grid_search, ticker, 'Kernel SVM') # ROC + confusion matrix test data
 learning_curve(rbf_SVM, ticker) # learning cruve
