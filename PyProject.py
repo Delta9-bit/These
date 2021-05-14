@@ -15,6 +15,7 @@ from sklearn.metrics import confusion_matrix, classification_report, roc_curve, 
 from sklearn.preprocessing import OneHotEncoder
 import statsmodels.api as sm
 from sklearn.preprocessing import MinMaxScaler
+import math
 
 # Display options
 pd.set_option("display.max_rows", None, "display.max_columns", None)
@@ -383,6 +384,9 @@ def test_train_split(data, train):
     data_test = data[data.index[slice] : data.index[len(data) - 1]] # slicing data
     data = data_copy
 
+    data.reset_index(drop = True, inplace = True)
+    data_test.reset_index(drop=True, inplace=True)
+
     y = data['position'] # re-creating X and y
     y.reset_index(drop = True, inplace =True)
     X = data.drop(['Adj Close', 'position'], axis = 1)
@@ -405,6 +409,8 @@ def test_train_SP(data, train):
     data_copy = data[data.index[0] : data.index[slice - 1]]
     data_test = data[data.index[slice] : data.index[len(data) - 1]]  # slicing data
     data = data_copy
+
+    data_test.reset_index(drop = True, inplace = True)
 
     return data, data_test;
 # plots of conditional distributions with respect to inputs
@@ -547,7 +553,8 @@ def profits_SP(data, amount):
 
     for p in range(0, len(data) - 1):
 
-        tx = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+        #tx = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+        tx = math.log(data['Adj Close'][p + 1]) - math.log(data['Adj Close'][p])
 
         if tx > 0:
             profit = init * tx
@@ -614,11 +621,13 @@ def profitsV2(data, amount):
 
     for p in range(0, len(data) - 1):
 
-        rate = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+        #rate = (data['Adj Close'][p + 1] - data['Adj Close'][p]) / data['Adj Close'][p]
+        rate = math.log(data['Adj Close'][p + 1]) - math.log(data['Adj Close'][p])
         returns.append(rate)
 
         if data['pred'][p] == 0:
-            available = total
+            if p > 0:
+                available = total
             profit = 0
             realized_returns.append(0)
             profits.append(profit)
@@ -701,29 +710,39 @@ def accuracy(data):
 
     return data;
 # Sharpe ratio
-def sharpe(data):
+def sharpe(data, market_data):
     returns = data['realized_returns']
+    market_returns = market_data['realized_returns']
 
     length_period = len(data['realized_returns'])
 
-    volatility = np.std(returns)
+    volatility = np.std(returns) ** (250 / length_period)
+    market_volatility = np.std(market_returns) ** (250 / length_period)
 
-    ratio = (sum(returns) / length_period) / volatility
+    expected_return = ((sum(returns) + 1) ** (250 / length_period)) - 1
+    expected_market_return = ((sum(market_returns) + 1) ** (250 / length_period)) - 1
 
-    return ratio;
+    ratio = expected_return / volatility
+    market_ratio = expected_market_return / market_volatility
+
+    print("Volatility market: ", market_volatility)
+    print("Volatility asset: ", volatility)
+    print("Sharpe market: ", market_ratio)
+    print("Sharpe asset: ", ratio)
 # beta
 def beta(data, market):
     returns = data['realized_returns']
-    market_returns = market['realized_returns']
+    market_returns = market['%returns']
 
-    num = np.cov(returns, market_returns)
+    num = np.cov(returns, market_returns)[0][1]
     den = np.var(market_returns)
 
     beta = num / den
 
-    return beta;
+    print("beta: ", beta)
+
 # Choosing assets
-ticker = 'AAPL' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
+ticker = 'TSLA' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
 ticker_SP = '^GSPC' # ticker for the S&P500
 
 start = dt.datetime(2010,8,1) # series starts on 2010/08/01
@@ -828,7 +847,7 @@ print(grid_search.best_params_) # displays the best set of parameters
 
 roc(y, pred_class, grid_search, ticker, 'Kernel SVM') # ROC + confusion matrix train data
 roc(y_test, pred_class_test, grid_search, ticker, 'Kernel SVM') # ROC + confusion matrix test data
-learning_curve(rbf_SVM, ticker) # learning cruve
+learning_curve(rbf_SVM, ticker) # learning curve
 
 data_test['pred'] = pred_class_test # adding predictions as 0/1 to the dataframe
 data_test = accuracy(data_test) # Counts the number of time the model is right/wrong
@@ -838,6 +857,9 @@ amount = 1000
 
 backtest = profitsV2(data_test, amount) # computes profits made with specified initial investment
 backtest_SP = profits_SP(data_SP_test, amount) # same for S&P
+
+sharpe(backtest, backtest_SP)
+beta(backtest, backtest_SP)
 
 plt.plot(data_test['profit'])
 plt.show
