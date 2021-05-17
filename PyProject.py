@@ -729,17 +729,31 @@ def sharpe(data, market_data):
     print("Volatility asset: ", volatility)
     print("Sharpe market: ", market_ratio)
     print("Sharpe asset: ", ratio)
-# beta
-def beta(data, market):
+# Sortino ratio
+def sortino(data, market_data, T):
+    down = []
+    down_market = []
+    market_returns = market_data['%returns']
     returns = data['realized_returns']
-    market_returns = market['%returns']
+    length_period = len(data)
 
-    num = np.cov(returns, market_returns)[0][1]
-    den = np.var(market_returns)
+    for p in range(0, length_period):
+        if data['realized_returns'][p] < T:
+            down.append(data['realized_returns'][p])
+        if market_data['%returns'][p] < T:
+            down_market.append(market_data['%returns'][p])
 
-    beta = num / den
+    semi_dev = np.std(down) ** (250 / length_period)
+    market_semi_dev = np.std(down_market) ** (250 / length_period)
 
-    print("beta: ", beta)
+    expected_return = ((sum(returns) + 1) ** (250 / length_period)) - 1
+    expected_market_return = ((sum(market_returns) + 1) ** (250 / length_period)) - 1
+
+    ratio = expected_return / semi_dev
+    market_ratio = expected_market_return / market_semi_dev
+
+    print("sortino asset: ", ratio)
+    print("sortino market: ", market_ratio)
 
 # Choosing assets
 ticker = 'TSLA' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
@@ -859,7 +873,7 @@ backtest = profitsV2(data_test, amount) # computes profits made with specified i
 backtest_SP = profits_SP(data_SP_test, amount) # same for S&P
 
 sharpe(backtest, backtest_SP)
-beta(backtest, backtest_SP)
+sortino(backtest, backtest_SP, 0)
 
 plt.plot(data_test['profit'])
 plt.show
