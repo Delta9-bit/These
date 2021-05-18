@@ -608,7 +608,7 @@ def profits_SP(data, amount):
     print('total realized return : ', round(percentage_gain, 2), '%')  # sum profits and compute % return
 
     return data;
-def profitsV2(data, amount):
+def profits(data, amount):
     available = amount
     total = 0
     profit = 0
@@ -712,7 +712,7 @@ def accuracy(data):
 # Sharpe ratio
 def sharpe(data, market_data):
     returns = data['realized_returns']
-    market_returns = market_data['realized_returns']
+    market_returns = market_data['%returns']
 
     length_period = len(data['realized_returns'])
 
@@ -725,17 +725,19 @@ def sharpe(data, market_data):
     ratio = expected_return / volatility
     market_ratio = expected_market_return / market_volatility
 
-    print("Volatility market: ", market_volatility)
-    print("Volatility asset: ", volatility)
-    print("Sharpe market: ", market_ratio)
-    print("Sharpe asset: ", ratio)
+    print("E[R_m]: ", round(expected_market_return, 2))
+    print("E[R_i]: ", round(expected_return, 2))
+    print("Volatility market: ", round(market_volatility, 2))
+    print("Volatility asset: ", round(volatility, 2))
+    print("Sharpe market: ", round(market_ratio, 2))
+    print("Sharpe asset: ", round(ratio, 2))
 # Sortino ratio
 def sortino(data, market_data, T):
     down = []
     down_market = []
     market_returns = market_data['%returns']
     returns = data['realized_returns']
-    length_period = len(data)
+    length_period = len(market_data)
 
     for p in range(0, length_period):
         if data['realized_returns'][p] < T:
@@ -752,8 +754,10 @@ def sortino(data, market_data, T):
     ratio = expected_return / semi_dev
     market_ratio = expected_market_return / market_semi_dev
 
-    print("sortino asset: ", ratio)
-    print("sortino market: ", market_ratio)
+    print("sigma down asset: ", round(semi_dev, 2))
+    print("sigma down market: ", round(market_semi_dev, 2))
+    print("sortino asset: ", round(ratio, 2))
+    print("sortino market: ", round(market_ratio, 2))
 
 # Choosing assets
 ticker = 'TSLA' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
@@ -869,11 +873,17 @@ data_test = accuracy(data_test) # Counts the number of time the model is right/w
 # Profits
 amount = 1000
 
-backtest = profitsV2(data_test, amount) # computes profits made with specified initial investment
+backtest = profits(data_test, amount) # computes profits made with specified initial investment
 backtest_SP = profits_SP(data_SP_test, amount) # same for S&P
 
 sharpe(backtest, backtest_SP)
 sortino(backtest, backtest_SP, 0)
+
+# benchmark profits
+backtest_bench = profits_SP(data_test, amount)
+
+sharpe(backtest, backtest_bench)
+sortino(backtest, backtest_bench, 0)
 
 plt.plot(data_test['profit'])
 plt.show
