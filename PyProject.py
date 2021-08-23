@@ -760,7 +760,7 @@ def sortino(data, market_data, T):
     print("sortino market: ", round(market_ratio, 2))
 
 # Choosing assets
-ticker = 'TSLA' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
+ticker = 'AF.PA' #Walmart:WMT - Apple:AAPL - AirFrance:AF.PA - Tesla:TSLA
 ticker_SP = '^GSPC' # ticker for the S&P500
 
 start = dt.datetime(2010,8,1) # series starts on 2010/08/01
